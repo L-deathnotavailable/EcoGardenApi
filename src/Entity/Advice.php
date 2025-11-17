@@ -14,10 +14,10 @@ class Advice
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
-    private ?string $Advicetext = null;
+    private ?string $advicetext = null;
 
     #[ORM\Column]
-    private ?int $Month = null;
+    private ?int $month = null;
 
     public function getId(): ?int
     {
@@ -26,24 +26,24 @@ class Advice
 
     public function getAdvicetext(): ?string
     {
-        return $this->Advicetext;
+        return $this->advicetext;
     }
 
     public function setAdvicetext(string $Advicetext): static
     {
-        $this->Advicetext = $Advicetext;
+        $this->advicetext = $Advicetext;
 
         return $this;
     }
 
     public function getMonth(): ?int
     {
-        return $this->Month;
+        return $this->month;
     }
 
-    public function setMonth(int $Month): static
+    public function setMonth(int $month): static
     {
-        $this->Month = $Month;
+        $this->month = $month;
 
         return $this;
     }
