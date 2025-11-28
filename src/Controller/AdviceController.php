@@ -96,7 +96,51 @@ class AdviceController extends AbstractController
         $em->persist($advice);
         $em->flush();
 
-        return $this->json(['message' => 'Advice created']);
+        return $this->json(['message' => 'Conseil créé avec succès !'], JsonResponse::HTTP_CREATED);
     }
+    #[Route('/api/advices/{id}', name: 'advice_update', methods: ['PUT'])]
+    public function updateAdvice(
+        int $id,
+        Request $request,
+        AdviceRepository $adviceRepository,
+        SerializerInterface $serializer,
+        ValidatorInterface $validator,
+        EntityManagerInterface $em
+    ): JsonResponse {
+        $advice = $adviceRepository->find($id);
+        if (!$advice) {
+            return $this->json(['message' => 'Advice not found']);
+        }
 
+        $data = json_decode($request->getContent(), true);
+
+        if (array_key_exists('adviceText', $data)) {
+            $advice->setAdviceText($data['adviceText']);
+        }
+        if (array_key_exists('months', $data)) {
+            $advice->setMonths($data['months']);
+        }
+
+        $errors = $validator->validate($advice);
+        if (count($errors) > 0) {
+            return $this->json($errors);
+        }
+
+        $em->flush();
+
+        return $this->json(['message' => 'Le conseil a été mis à jour avec succès !']);
+    }
+    #[Route('/api/advices/{id}', name: 'advice_delete', methods: ['DELETE'])]
+    public function deleteAdvice(int $id, AdviceRepository $adviceRepository, EntityManagerInterface $em): JsonResponse
+    {
+        $advice = $adviceRepository->find($id);
+        if (!$advice) {
+            return $this->json(['message' => 'Conseil non trouvé']);
+        }
+
+        $em->remove($advice);
+        $em->flush();
+
+        return $this->json(['message' => 'Conseil supprimé']);
+    }
 }
