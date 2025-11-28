@@ -10,40 +10,69 @@ use Symfony\Component\Serializer\SerializerInterface;
 
 class AdviceController extends AbstractController
 {
-    #[Route('/api/advices', name: 'api_advices_list', methods: ['GET'])]
-    public function list(AdviceRepository $adviceRepository): JsonResponse
+    public function __construct(
+        private AdviceRepository $adviceRepository,
+        private SerializerInterface $serializer,
+    ) {
+    }
+
+    #[Route('/api/advices/{month}', name: 'api_advices_by_month', methods: ['GET'])]
+    public function getAdvicesByMonth(int $month): JsonResponse
     {
+        // Vérification du paramètre month si invalide
+        if ($month < 1 || $month > 12) {
+            return $this->json([
+                'message' => 'Le mois doit être un entier entre 1 et 12.',
+            ]);
+        }
+
         // 1. Récupérer les données en BDD
-        $advices = $adviceRepository->findAll();
+        $advices = $this->adviceRepository->findBy(['month' => $month]);
 
-        // 2. Transformer les entités en tableau "propre" pour le JSON
+        if (!$advices) {
+            return $this->json([
+                'message' => 'Aucun conseil trouvé pour ce mois.',
+            ]);
+        }
+
+        // 2. Préparer les données pour la réponse JSON
         $data = [];
-
         foreach ($advices as $advice) {
             $data[] = [
-                'id'          => $advice->getId(),
-                'title'       => $advice->getAdvicetext(),
-                'month'       => $advice->getMonth(),
+                'id'    => $advice->getId(),
+                'title' => $advice->getAdvicetext(),
+                'month' => $advice->getMonth(),
             ];
         }
 
-        // 3. Retourner du JSON
+        // 3.  Retourner la réponse JSON
         return $this->json($data);
     }
-    #[Route('/api/advices/{month}', name: 'app_advice_by_month', methods: ['GET'])]
-    public function getAdviceOneByMonth(int $month, AdviceRepository $adviceRepository, SerializerInterface $serializer): JsonResponse {
-        
-        // 1. Récupérer les données en BDD
-        $advice = $adviceRepository->findOneByMonth($month);
 
-        // 2. Gérer le cas où aucun conseil n'est trouvé
-        if (!$advice) {
-            return new JsonResponse(['message' => 'Aucun conseil trouvé pour ce mois']);
+    #[Route('/api/advices', name: 'api_advices_current_month', methods: ['GET'])]
+    public function getCurrentMonthAdvices(): JsonResponse
+    {
+        // 1. Déterminer le mois en cours
+        $currentMonth = (int) (new \DateTimeImmutable())->format('n');
+
+        // 2. Récupérer les conseils pour le mois en cours
+        $advices = $this->adviceRepository->findBy(['month' => $currentMonth]);
+
+        if (!$advices) {
+            return $this->json([
+                'message' => 'Aucun conseil trouvé pour le mois en cours.',
+            ]);
         }
-        
-        $data = $serializer->serialize($advice, 'json');
-
-        // 3. Retourner du JSON
+        // 3. Préparer les données pour la réponse JSON
+        $data = [];
+        foreach ($advices as $advice) {
+            $data[] = [
+                'id'    => $advice->getId(),
+                'title' => $advice->getAdvicetext(),
+                'month' => $advice->getMonth(),
+            ];
+        }
+        // 4. Retourner la réponse JSON
         return $this->json($data);
     }
 }

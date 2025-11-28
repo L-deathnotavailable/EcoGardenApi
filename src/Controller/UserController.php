@@ -10,7 +10,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
@@ -23,7 +22,6 @@ class UserController extends AbstractController
         private SerializerInterface $serializer,
         private ValidatorInterface $validator,
         private TagAwareCacheInterface $cache,
-        private UrlGeneratorInterface $urlGenerator,
     ) {
     }
 
