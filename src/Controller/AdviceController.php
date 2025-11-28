@@ -2,17 +2,20 @@
 
 namespace App\Controller;
 
+use App\Entity\Advice;
 use App\Repository\AdviceRepository;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class AdviceController extends AbstractController
 {
     public function __construct(
         private AdviceRepository $adviceRepository,
-        private SerializerInterface $serializer,
     ) {
     }
 
@@ -75,4 +78,25 @@ class AdviceController extends AbstractController
         // 4. Retourner la réponse JSON
         return $this->json($data);
     }
+    #[Route('/api/advices/add', name: 'advice_create', methods: ['POST'])]
+    public function createAdvice(
+        Request $request,
+        SerializerInterface $serializer,
+        ValidatorInterface $validator,
+        EntityManagerInterface $em
+    ): JsonResponse {
+
+        $advice = $serializer->deserialize($request->getContent(), Advice::class, 'json');
+
+        $errors = $validator->validate($advice);
+        if (count($errors) > 0) {
+            return $this->json($errors);
+        }
+        
+        $em->persist($advice);
+        $em->flush();
+
+        return $this->json(['message' => 'Advice created']);
+    }
+
 }
