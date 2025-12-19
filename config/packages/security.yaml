@@ -8,6 +8,9 @@ security:
             entity:
                 class: App\Entity\User
                 property: email
+    
+    role_hierarchy:
+        ROLE_ADMIN: ROLE_USER
 
     firewalls:
         dev:
@@ -35,10 +38,14 @@ security:
 
     access_control:
         # On laisse tout le monde appeler POST /user (création de compte)
-        - { path: ^/user, roles: PUBLIC_ACCESS, methods: [POST] }
+        - { path: ^/user$, roles: PUBLIC_ACCESS, methods: [POST] }
 
         # On laisse tout le monde appeler /api/auth (récupérer un token)
-        - { path: ^/api/auth, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth$, roles: PUBLIC_ACCESS, methods: [POST] }
 
         # Tout le reste de /api nécessite un token valide
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
+
+        # Seuls les admins peuvent créer, modifier ou supprimer des conseils
+        - { path: ^/api/advices, roles: ROLE_ADMIN, methods: [POST, PUT, DELETE] }
+

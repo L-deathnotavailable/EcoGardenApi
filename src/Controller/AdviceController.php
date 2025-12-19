@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class AdviceController extends AbstractController
 {
@@ -78,6 +79,7 @@ class AdviceController extends AbstractController
         // 4. Retourner la réponse JSON
         return $this->json($data);
     }
+    #[IsGranted('ROLE_ADMIN')]
     #[Route('/api/advices/add', name: 'advice_create', methods: ['POST'])]
     public function createAdvice(
         Request $request,
@@ -98,38 +100,59 @@ class AdviceController extends AbstractController
 
         return $this->json(['message' => 'Conseil créé avec succès !'], JsonResponse::HTTP_CREATED);
     }
+    #[IsGranted('ROLE_ADMIN')]
     #[Route('/api/advices/{id}', name: 'advice_update', methods: ['PUT'])]
     public function updateAdvice(
         int $id,
         Request $request,
-        AdviceRepository $adviceRepository,
-        SerializerInterface $serializer,
         ValidatorInterface $validator,
         EntityManagerInterface $em
     ): JsonResponse {
-        $advice = $adviceRepository->find($id);
+        $advice = $this->adviceRepository->find($id);
+
         if (!$advice) {
-            return $this->json(['message' => 'Advice not found']);
+            return $this->json(['message' => 'Conseil non trouvé'], JsonResponse::HTTP_NOT_FOUND);
         }
 
+        // 1) Lire le JSON
         $data = json_decode($request->getContent(), true);
-
-        if (array_key_exists('adviceText', $data)) {
-            $advice->setAdviceText($data['adviceText']);
-        }
-        if (array_key_exists('months', $data)) {
-            $advice->setMonths($data['months']);
+        if (!is_array($data)) {
+            return $this->json(['message' => 'Corps de requête invalide (JSON attendu).'], JsonResponse::HTTP_BAD_REQUEST);
         }
 
+        // 2) Mise à jour partielle : on ne change QUE ce qui est envoyé
+        $hasAnyField = false;
+
+        if (array_key_exists('advicetext', $data)) {
+            $advice->setAdvicetext((string) $data['advicetext']);
+            $hasAnyField = true;
+        }
+
+        if (array_key_exists('month', $data)) {
+            // Si month est envoyé vide/null → la validation NotNull/Range gérera l'erreur
+            $advice->setMonth((int) $data['month']);
+            $hasAnyField = true;
+        }
+
+        // 3) Si le body ne contient aucun champ connu
+        if (!$hasAnyField) {
+            return $this->json([
+                'message' => 'Aucune donnée à mettre à jour. Champs acceptés : advicetext, month.'
+            ], JsonResponse::HTTP_BAD_REQUEST);
+        }
+
+        // 4) Valider l'entité après modifications
         $errors = $validator->validate($advice);
         if (count($errors) > 0) {
-            return $this->json($errors);
+            return $this->json($errors, JsonResponse::HTTP_BAD_REQUEST);
         }
 
+        // 5) Sauvegarde
         $em->flush();
 
-        return $this->json(['message' => 'Le conseil a été mis à jour avec succès !']);
+        return $this->json(['message' => 'Le conseil a été mis à jour avec succès !'], JsonResponse::HTTP_OK);
     }
+    #[IsGranted('ROLE_ADMIN')]
     #[Route('/api/advices/{id}', name: 'advice_delete', methods: ['DELETE'])]
     public function deleteAdvice(int $id, AdviceRepository $adviceRepository, EntityManagerInterface $em): JsonResponse
     {
