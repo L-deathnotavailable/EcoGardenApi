@@ -25,18 +25,20 @@ class AdviceController extends AbstractController
     {
         // Vérification du paramètre month si invalide
         if ($month < 1 || $month > 12) {
-            return $this->json([
-                'message' => 'Le mois doit être un entier entre 1 et 12.',
-            ]);
+            return $this->json(
+                ['message' => 'Le mois doit être un entier entre 1 et 12.'],
+                JsonResponse::HTTP_BAD_REQUEST
+            );
         }
 
         // 1. Récupérer les données en BDD
         $advices = $this->adviceRepository->findBy(['month' => $month]);
 
         if (!$advices) {
-            return $this->json([
-                'message' => 'Aucun conseil trouvé pour ce mois.',
-            ]);
+            return $this->json(
+                ['message' => 'Aucun conseil trouvé pour ce mois.'],
+                JsonResponse::HTTP_NOT_FOUND
+            );
         }
 
         // 2. Préparer les données pour la réponse JSON
@@ -49,8 +51,8 @@ class AdviceController extends AbstractController
             ];
         }
 
-        // 3.  Retourner la réponse JSON
-        return $this->json($data);
+        // 3.  Retourner la réponse JSON (200 OK)
+        return $this->json($data, JsonResponse::HTTP_OK);
     }
 
     #[Route('/api/advices', name: 'api_advices_current_month', methods: ['GET'])]
@@ -62,12 +64,14 @@ class AdviceController extends AbstractController
         // 2. Récupérer les conseils pour le mois en cours
         $advices = $this->adviceRepository->findBy(['month' => $currentMonth]);
 
+        // 404 : aucun conseil pour le mois courant
         if (!$advices) {
-            return $this->json([
-                'message' => 'Aucun conseil trouvé pour le mois en cours.',
-            ]);
+            return $this->json(
+                ['message' => 'Aucun conseil trouvé pour le mois en cours.'],
+                JsonResponse::HTTP_NOT_FOUND
+            );
         }
-        // 3. Préparer les données pour la réponse JSON
+
         $data = [];
         foreach ($advices as $advice) {
             $data[] = [
@@ -77,9 +81,11 @@ class AdviceController extends AbstractController
             ];
         }
         // 4. Retourner la réponse JSON
-        return $this->json($data);
+        return $this->json($data, JsonResponse::HTTP_OK);
     }
-    #[IsGranted('ROLE_ADMIN')]
+
+    // ADMIN ONLY
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour créer un conseil')]
     #[Route('/api/advices/add', name: 'advice_create', methods: ['POST'])]
     public function createAdvice(
         Request $request,
@@ -87,20 +93,35 @@ class AdviceController extends AbstractController
         ValidatorInterface $validator,
         EntityManagerInterface $em
     ): JsonResponse {
+        // 400 : JSON invalide
+        try {
+            /** @var Advice $advice */
+            $advice = $serializer->deserialize($request->getContent(), Advice::class, 'json');
+        } catch (\Throwable) {
+            return $this->json(
+                ['message' => 'Corps de requête invalide (JSON attendu).'],
+                JsonResponse::HTTP_BAD_REQUEST
+            );
+        }
 
-        $advice = $serializer->deserialize($request->getContent(), Advice::class, 'json');
-
+        // 400 : validation KO
         $errors = $validator->validate($advice);
         if (count($errors) > 0) {
-            return $this->json($errors);
+            return $this->json($errors, JsonResponse::HTTP_BAD_REQUEST);
         }
-        
+
         $em->persist($advice);
         $em->flush();
 
-        return $this->json(['message' => 'Conseil créé avec succès !'], JsonResponse::HTTP_CREATED);
+        // 201 : créé
+        return $this->json(
+            ['message' => 'Conseil créé avec succès !'],
+            JsonResponse::HTTP_CREATED
+        );
     }
-    #[IsGranted('ROLE_ADMIN')]
+
+    // ADMIN ONLY
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour modifier un conseil')]
     #[Route('/api/advices/{id}', name: 'advice_update', methods: ['PUT'])]
     public function updateAdvice(
         int $id,
@@ -110,14 +131,22 @@ class AdviceController extends AbstractController
     ): JsonResponse {
         $advice = $this->adviceRepository->find($id);
 
+        // 404 : ressource introuvable
         if (!$advice) {
-            return $this->json(['message' => 'Conseil non trouvé'], JsonResponse::HTTP_NOT_FOUND);
+            return $this->json(
+                ['message' => 'Conseil non trouvé'],
+                JsonResponse::HTTP_NOT_FOUND
+            );
         }
 
         // 1) Lire le JSON
         $data = json_decode($request->getContent(), true);
         if (!is_array($data)) {
-            return $this->json(['message' => 'Corps de requête invalide (JSON attendu).'], JsonResponse::HTTP_BAD_REQUEST);
+            // 400 : JSON invalide
+            return $this->json(
+                ['message' => 'Corps de requête invalide (JSON attendu).'],
+                JsonResponse::HTTP_BAD_REQUEST
+            );
         }
 
         // 2) Mise à jour partielle : on ne change QUE ce qui est envoyé
@@ -134,11 +163,12 @@ class AdviceController extends AbstractController
             $hasAnyField = true;
         }
 
-        // 3) Si le body ne contient aucun champ connu
+        // 3) 400 : rien à mettre à jour
         if (!$hasAnyField) {
-            return $this->json([
-                'message' => 'Aucune donnée à mettre à jour. Champs acceptés : advicetext, month.'
-            ], JsonResponse::HTTP_BAD_REQUEST);
+            return $this->json(
+                ['message' => 'Aucune donnée à mettre à jour. Champs acceptés : advicetext, month.'],
+                JsonResponse::HTTP_BAD_REQUEST
+            );
         }
 
         // 4) Valider l'entité après modifications
@@ -150,20 +180,35 @@ class AdviceController extends AbstractController
         // 5) Sauvegarde
         $em->flush();
 
-        return $this->json(['message' => 'Le conseil a été mis à jour avec succès !'], JsonResponse::HTTP_OK);
+        // 200 : OK
+        return $this->json(
+            ['message' => 'Le conseil a été mis à jour avec succès !'],
+            JsonResponse::HTTP_OK
+        );
     }
-    #[IsGranted('ROLE_ADMIN')]
+
+    // ADMIN ONLY
+    #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour supprimer un conseil')]
     #[Route('/api/advices/{id}', name: 'advice_delete', methods: ['DELETE'])]
-    public function deleteAdvice(int $id, AdviceRepository $adviceRepository, EntityManagerInterface $em): JsonResponse
+    public function deleteAdvice(int $id, EntityManagerInterface $em): JsonResponse
     {
-        $advice = $adviceRepository->find($id);
+        $advice = $this->adviceRepository->find($id);
+
+        // 404 : ressource introuvable
         if (!$advice) {
-            return $this->json(['message' => 'Conseil non trouvé']);
+            return $this->json(
+                ['message' => 'Conseil non trouvé'],
+                JsonResponse::HTTP_NOT_FOUND
+            );
         }
 
         $em->remove($advice);
         $em->flush();
 
-        return $this->json(['message' => 'Conseil supprimé']);
+        // 200 : OK
+        return $this->json(
+            ['message' => 'Conseil supprimé'],
+            JsonResponse::HTTP_OK
+        );
     }
 }

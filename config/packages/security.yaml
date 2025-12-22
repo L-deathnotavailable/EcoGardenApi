@@ -37,15 +37,16 @@ security:
             provider: app_user_provider
 
     access_control:
-        # On laisse tout le monde appeler POST /user (création de compte)
-        - { path: ^/user$, roles: PUBLIC_ACCESS, methods: [POST] }
+    # PUBLIC — création de compte
+    - { path: ^/api/user$, roles: PUBLIC_ACCESS, methods: [POST] }
 
-        # On laisse tout le monde appeler /api/auth (récupérer un token)
-        - { path: ^/api/auth$, roles: PUBLIC_ACCESS, methods: [POST] }
+    # PUBLIC — récupération du token
+    - { path: ^/api/auth$, roles: PUBLIC_ACCESS, methods: [POST] }
 
-        # Tout le reste de /api nécessite un token valide
-        - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
+    # ADMIN — écriture conseils
+    - { path: ^/api/advices, roles: ROLE_ADMIN, methods: [POST, PUT, DELETE] }
 
-        # Seuls les admins peuvent créer, modifier ou supprimer des conseils
-        - { path: ^/api/advices, roles: ROLE_ADMIN, methods: [POST, PUT, DELETE] }
+    # AUTH — tout le reste de l’API
+    - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
+
 

@@ -59,8 +59,16 @@ class UserController extends AbstractController
         $user->setPassword($hashedPassword);
 
         // 5. Sauvegarde en BDD
-        $this->em->persist($user);
-        $this->em->flush();
+        try {
+            $this->em->persist($user);
+            $this->em->flush();
+        } catch (\Throwable) {
+            // Contrainte unique email / erreur DB
+            return $this->json(
+                ['message' => 'Impossible de créer l’utilisateur (email déjà utilisé ou erreur serveur).'],
+                Response::HTTP_BAD_REQUEST
+            );
+        }
 
         // 6. Cache
         $this->cache->invalidateTags(['usersCache']);
@@ -71,7 +79,6 @@ class UserController extends AbstractController
         // 8. Retourner l'utilisateur créé en JSON (sans le password grâce aux groups)
         return new JsonResponse($jsonUser, Response::HTTP_CREATED, [], true);
     }
-
 
     #[Route('/api/user/{id}', name: 'app_user_update', methods: ['PUT'])]
     #[IsGranted('ROLE_ADMIN', message: 'Vous n\'avez pas les droits suffisants pour modifier un profil utilisateur')]
@@ -90,6 +97,10 @@ class UserController extends AbstractController
                 ['message' => 'Corps de requête invalide (JSON attendu).'],
                 Response::HTTP_BAD_REQUEST
             );
+        }
+
+        if ($payload === []) {
+            return $this->json(['message' => 'Aucune donnée à mettre à jour.'], Response::HTTP_BAD_REQUEST);
         }
 
         // Si le password n’est PAS envoyé, on évite NotBlank(password) en le retirant du JSON
@@ -133,7 +144,16 @@ class UserController extends AbstractController
             return $this->json($errors, Response::HTTP_BAD_REQUEST);
         }
 
-        $this->em->flush();
+        try {
+            $this->em->flush();
+        } catch (\Throwable) {
+            // Contrainte unique email / erreur DB
+            return $this->json(
+                ['message' => 'Impossible de mettre à jour l’utilisateur (email déjà utilisé ou erreur serveur).'],
+                Response::HTTP_BAD_REQUEST
+            );
+        }
+
         $this->cache->invalidateTags(['usersCache']);
 
         $jsonUser = $this->serializer->serialize($user, 'json', ['groups' => 'getUser']);
@@ -150,8 +170,15 @@ class UserController extends AbstractController
             return $this->json(['message' => 'Utilisateur introuvable'], Response::HTTP_NOT_FOUND);
         }
 
-        $this->em->remove($user);
-        $this->em->flush();
+        try {
+            $this->em->remove($user);
+            $this->em->flush();
+        } catch (\Throwable) {
+            return $this->json(
+                ['message' => 'Impossible de supprimer l’utilisateur (erreur serveur).'],
+                Response::HTTP_INTERNAL_SERVER_ERROR
+            );
+        }
 
         $this->cache->invalidateTags(['usersCache']);
 
