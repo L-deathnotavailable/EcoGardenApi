@@ -6,15 +6,19 @@ use App\Entity\User;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use OpenApi\Attributes as OA;
 
 class ExternalWeatherApiController extends AbstractController
 {
+    private CacheInterface $cache;
     private HttpClientInterface $httpClient;
-    public function __construct(HttpClientInterface $httpClient)
+
+    public function __construct(CacheInterface $cache, HttpClientInterface $httpClient)
     {
+        $this->cache = $cache;
         $this->httpClient = $httpClient;
     }
 
@@ -39,7 +43,9 @@ class ExternalWeatherApiController extends AbstractController
 
         $postCodeString = (string)$postCode;
         $apiKey = $this->getParameter('openweathermap_api_key');
-
+        $cacheKey = "weather_$postCodeString";
+        $jsonWeather = $this->cache->get($cacheKey, function ($item) use ($postCodeString, $apiKey) {
+        $item->expiresAfter(3600);
         
             $response = $this->httpClient->request('GET', 'http://api.openweathermap.org/data/2.5/weather', [
                 'query' => [
@@ -48,12 +54,14 @@ class ExternalWeatherApiController extends AbstractController
                     'units' => 'metric',
                 ],
             ]);
-            
+        
             if ($response->getStatusCode() === 200) {
-                return new JsonResponse(json_encode($response->getContent()), JsonResponse::HTTP_OK, [], true);
+                return $response->getContent();
             }
-
-            return new JsonResponse(json_encode(['message' => 'Erreur lors de la récupération des données météo']));
+        
+            return json_encode(['message' => 'Erreur lors de la récupération des données météo']);
+        });
+        return new JsonResponse($jsonWeather, JsonResponse::HTTP_OK, [], true);
     }
 
     
@@ -94,6 +102,10 @@ class ExternalWeatherApiController extends AbstractController
     {
         $apiKey = $this->getParameter('openweathermap_api_key');
 
+        $cacheKey = "weather_$city";
+        $jsonWeather = $this->cache->get($cacheKey, function ($item) use ($city, $apiKey) {
+            $item->expiresAfter(3600);
+
             $response = $this->httpClient->request('GET', 'http://api.openweathermap.org/data/2.5/weather', [
                 'query' => [
                     'q' => $city,
@@ -106,6 +118,8 @@ class ExternalWeatherApiController extends AbstractController
                 return new JsonResponse(json_encode($response->getContent()), JsonResponse::HTTP_OK, [], true);
             }
 
-            return new JsonResponse(json_encode(['message' => 'Erreur lors de la récupération des données météo']));   
+            return json_encode(['message' => 'Erreur lors de la récupération des données météo']);
+        });
+        return new JsonResponse($jsonWeather, JsonResponse::HTTP_OK, [], true);
     }
 }
